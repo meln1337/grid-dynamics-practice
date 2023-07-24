@@ -29,11 +29,11 @@ title_basics = spark.read.csv(f'{path}/title.basics.tsv',
                                     schema=title_basics_schema,
                                     dateFormat='yyyy')
 
-# ratings = spark.read.csv(f'{path}/title.ratings.tsv',
-#                                     sep=r'\t',
-#                                     header=True,
-#                                     nullValue='null',
-#                                     schema=ratings_schema)
+ratings = spark.read.csv(f'{path}/title.ratings.tsv',
+                                    sep=r'\t',
+                                    header=True,
+                                    nullValue='null',
+                                    schema=ratings_schema)
 
 def how_many_ua_titles(akas: pyspark.sql.DataFrame) -> int:
     return akas.filter(akas.region == 'UA').count()
@@ -49,6 +49,17 @@ def title_with_the_most_numvotes(title_basics: pyspark.sql.DataFrame, ratings: p
         .limit(1) \
         .collect()[0]['primaryTitle']
 
+def get_the_most_common_region(akas: pyspark.sql.DataFrame) -> str:
+    return akas.groupBy('region') \
+        .count() \
+        .sort(f.desc('count')) \
+        .collect()[0]['region']
+
+def get_title_with_highest_rating(ratings: pyspark.sql.DataFrame, title_basics: pyspark.sql.DataFrame) -> str:
+    return ratings.join(title_basics, 'tconst', 'left') \
+        .select('tconst', 'originalTitle', 'averageRating') \
+        .sort(f.desc('averageRating')) \
+        .collect()[0]['originalTitle']
 
 def test_1():
     expected_result = how_many_ua_titles(akas)
@@ -66,3 +77,11 @@ def test_2():
 def test_3():
     result = title_with_the_most_numvotes(title_basics, ratings)
     assert result == "Planet Earth", "Wrong title"
+
+def test_4():
+    result = get_the_most_common_region(akas)
+    assert result == "DE", "Wrong region"
+
+def test_5():
+    result = get_title_with_highest_rating(ratings, title_basics)
+    assert result == "Die Fee", "Wrong title"
