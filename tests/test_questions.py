@@ -3,7 +3,7 @@ from pyspark import SparkConf
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as f
 from chispa.dataframe_comparer import assert_df_equality
-from schemas import akas_schema, ratings_schema, title_basics_schema
+from schemas import akas_schema, ratings_schema, title_basics_schema, episode_schema
 
 path = 'C:/files/grid-dynamics'
 
@@ -35,6 +35,12 @@ ratings = spark.read.csv(f'{path}/title.ratings.tsv',
                                     nullValue='null',
                                     schema=ratings_schema)
 
+episode = spark.read.csv(f'{path}/title.episode.tsv',
+                                    sep=r'\t',
+                                    header=True,
+                                    nullValue='null',
+                                    schema=episode_schema)
+
 def how_many_ua_titles(akas: pyspark.sql.DataFrame) -> int:
     return akas.filter(akas.region == 'UA').count()
 
@@ -61,6 +67,14 @@ def get_title_with_highest_rating(ratings: pyspark.sql.DataFrame, title_basics: 
         .sort(f.desc('averageRating')) \
         .collect()[0]['originalTitle']
 
+def get_title_with_highest_episode_number(episode: pyspark.sql.DataFrame) -> str:
+    return episode.groupBy('parentTconst') \
+        .count() \
+        .join(title_basics, episode.parentTconst == title_basics.tconst, 'left') \
+        .sort(f.desc('count')) \
+        .collect()[0]['originalTitle']
+
+
 def test_1():
     expected_result = how_many_ua_titles(akas)
     assert expected_result == 27365, "There are 27365 titles with UA region"
@@ -85,3 +99,7 @@ def test_4():
 def test_5():
     result = get_title_with_highest_rating(ratings, title_basics)
     assert result == "Die Fee", "Wrong title"
+
+def test_6():
+    result = get_title_with_highest_episode_number(episode)
+    assert result == "NRK Nyheter", "Wrong title"

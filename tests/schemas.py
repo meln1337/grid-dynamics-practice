@@ -28,3 +28,10 @@ ratings_schema = t.StructType([
     t.StructField('averageRating', t.FloatType(), True),
     t.StructField('numVotes', t.IntegerType(), True)
 ])
+
+episode_schema = t.StructType([
+    t.StructField('tconst', t.StringType(), True),
+    t.StructField('parentTconst', t.StringType(), True),
+    t.StructField('seasonNumber', t.IntegerType(), True),
+    t.StructField('episodeNumber', t.IntegerType(), True),
+])
