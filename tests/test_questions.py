@@ -1,24 +1,11 @@
-import pytest
+import pyspark.sql
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
-import pyspark.sql.types as t
 import pyspark.sql.functions as f
+from chispa.dataframe_comparer import assert_df_equality
+from schemas import akas_schema, ratings_schema, title_basics_schema
 
 path = 'C:/files/grid-dynamics'
-
-akas_schema = t.StructType([
-    t.StructField('titleId', t.StringType(), True),
-    t.StructField('ordering', t.IntegerType(), True),
-    t.StructField('title', t.StringType(), True),
-    t.StructField('region', t.StringType(), True),
-    t.StructField('language', t.StringType(), True),
-    t.StructField('types', t.StringType(), True),
-    t.StructField('attributes', t.StringType(), True),
-    t.StructField('isOriginalTitle', t.BooleanType(), True)
-])
-
-
-
 
 # Create a SparkSession
 spark = (
@@ -35,12 +22,47 @@ akas = spark.read.csv(f'{path}/title.akas.tsv',
                                   nullValue='null',
                                   schema=akas_schema)
 
-def test_akas_dataframe_load():
-    # Load the DataFrame from the file
-    # Assert that the DataFrame is not empty
-    assert akas.count() > 0, "DataFrame 'akas' is empty."
+title_basics = spark.read.csv(f'{path}/title.basics.tsv',
+                                    sep=r'\t',
+                                    header=True,
+                                    nullValue='null',
+                                    schema=title_basics_schema,
+                                    dateFormat='yyyy')
 
-def test_akas_dataframe_load_2():
-    # Load the DataFrame from the file
-    # Assert that the DataFrame is not empty
-    assert akas.count() > 1, "DataFrame 'akas' is empty."
+# ratings = spark.read.csv(f'{path}/title.ratings.tsv',
+#                                     sep=r'\t',
+#                                     header=True,
+#                                     nullValue='null',
+#                                     schema=ratings_schema)
+
+def how_many_ua_titles(akas: pyspark.sql.DataFrame) -> int:
+    return akas.filter(akas.region == 'UA').count()
+
+def first_5_titles_short(title_basics: pyspark.sql.DataFrame) -> pyspark.sql.DataFrame:
+    return title_basics.filter(f.col('genres').contains('Short')).limit(5)
+
+def title_with_the_most_numvotes(title_basics: pyspark.sql.DataFrame, ratings: pyspark.sql.DataFrame) -> str:
+    return title_basics.filter(f.col('genres').contains('Documentary')) \
+        .select('tconst', 'primaryTitle') \
+        .join(ratings, 'tconst', 'inner') \
+        .sort(f.desc('numVotes')) \
+        .limit(1) \
+        .collect()[0]['primaryTitle']
+
+
+def test_1():
+    expected_result = how_many_ua_titles(akas)
+    assert expected_result == 27365, "There are 27365 titles with UA region"
+
+def test_2():
+    expected_result = spark.read.csv('C:/Projects/jupyter projects/practice grid dynamics/2.tsv',
+                                    sep=r'\t',
+                                    header=True,
+                                    nullValue='null',
+                                    schema=title_basics_schema)
+    result = first_5_titles_short(title_basics)
+    assert_df_equality(result, expected_result)
+
+def test_3():
+    result = title_with_the_most_numvotes(title_basics, ratings)
+    assert result == "Planet Earth", "Wrong title"
